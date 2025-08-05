@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, SafeAreaView, Platform } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, SafeAreaView, Platform, Alert, KeyboardAvoidingView, ScrollView } from 'react-native';
 import { router } from 'expo-router';
 import { Colors } from '../Styles/GlobalColors';
-import Slider from '@react-native-community/slider';
+import { apiService } from '../services/apiService';
 import { LinearGradient } from 'expo-linear-gradient';
 
 const getQuestions = (name: string) => [
@@ -32,11 +32,9 @@ const getQuestions = (name: string) => [
   },
   {
     question: name ? `Be honest, ${name}, how’s your sleep game lately? 😴` : 'Be honest, how’s your sleep game lately? 😴',
-    subtext: 'Use the slider to tell us how many hours of sleep you get on average.',
-    type: 'slider',
-    min: 4,
-    max: 12,
-    initialValue: 8,
+    subtext: 'Select the option that best describes your sleep.',
+    type: 'options',
+    options: ['Less than 4 hours', '4-6 hours', '7-9 hours', '10+ hours'],
   },
 ];
 
@@ -49,15 +47,31 @@ const WelcomeScreen = () => {
   const questions = getQuestions(userName);
   const currentQuestion = questions[currentQuestionIndex];
 
-  const [sliderValue, setSliderValue] = useState(questions[4].initialValue || 8);
-
-  
-
-  useEffect(() => {
-    if (currentQuestion.type === 'slider') {
-      setSliderValue(currentQuestion.initialValue || 8);
+  const handleWelcomeComplete = async () => {
+    try {
+      const isAuth = await apiService.isAuthenticated();
+      
+      if (isAuth) {
+        router.replace('/Questionnaire' as any);
+      } else {
+        Alert.alert(
+          'Authentication Required',
+          'Please log in to access questionnaires.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Login', onPress: () => router.replace('/(auth)/Login' as any) }
+          ]
+        );
+      }
+    } catch (error) {
+      console.error('Auth check failed:', error);
+      Alert.alert(
+        'Error',
+        'Unable to verify authentication. Please try logging in.',
+        [{ text: 'OK', onPress: () => router.replace('/(auth)/Login' as any) }]
+      );
     }
-  }, [currentQuestionIndex, questions]);
+  };
 
   const handleNextQuestion = (answer: string) => {
     if (currentQuestionIndex === 0) {
@@ -68,30 +82,25 @@ const WelcomeScreen = () => {
     if (currentQuestionIndex < questions.length - 1) {
       setCurrentQuestionIndex(currentQuestionIndex + 1);
     } else {
-      router.replace('/');
+      // After completing welcome questions, check auth and navigate to questionnaire
+      handleWelcomeComplete();
     }
   };
 
   const renderQuestion = () => {
     switch (currentQuestion.type) {
-      case 'slider':
+      case 'options':
         return (
-          <View style={styles.sliderContainer}>
-            <Slider
-              style={{ width: '100%', height: 40 }}
-              minimumValue={currentQuestion.min}
-              maximumValue={currentQuestion.max}
-              step={1}
-              value={sliderValue}
-              onValueChange={(newValue) => setSliderValue(newValue)}
-              minimumTrackTintColor={Colors.primaryDotColor}
-              maximumTrackTintColor="#ddd"
-              thumbTintColor={Colors.primaryDotColor}
-            />
-            <Text style={styles.sliderValueText}>{sliderValue} hours</Text>
-            <TouchableOpacity style={styles.button} onPress={() => handleNextQuestion(`${sliderValue} hours`)}>
-              <Text style={styles.buttonText}>Next</Text>
-            </TouchableOpacity>
+          <View style={styles.optionsContainer}>
+            {currentQuestion.options && currentQuestion.options.map((option) => (
+              <TouchableOpacity
+                key={option}
+                style={styles.optionButton}
+                onPress={() => handleNextQuestion(option)}
+              >
+                <Text style={styles.optionButtonText}>{option}</Text>
+              </TouchableOpacity>
+            ))}
           </View>
         );
       case 'text':
@@ -115,18 +124,34 @@ const WelcomeScreen = () => {
   };
 
   return (
-    <LinearGradient
-      colors={['#E0D2FF', '#FFF8E1']}
-      style={styles.container}
+    <KeyboardAvoidingView 
+      style={{ flex: 1 }} 
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+      enabled={true}
     >
-      <SafeAreaView style={styles.safeArea}>
-        <View style={styles.card}>
-          <Text style={styles.questionText}>{currentQuestion.question}</Text>
-          {currentQuestion.subtext ? <Text style={styles.subtext}>{currentQuestion.subtext}</Text> : null}
-          {renderQuestion()}
-        </View>
-      </SafeAreaView>
-    </LinearGradient>
+      <LinearGradient
+        colors={['#E0D2FF', '#FFF8E1']}
+        style={styles.container}
+      >
+        <SafeAreaView style={styles.safeArea}>
+          <ScrollView 
+            contentContainerStyle={styles.scrollContainer}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            bounces={true}
+            decelerationRate="fast"
+            scrollEventThrottle={16}
+          >
+            <View style={styles.card}>
+              <Text style={styles.questionText}>{currentQuestion.question}</Text>
+              {currentQuestion.subtext ? <Text style={styles.subtext}>{currentQuestion.subtext}</Text> : null}
+              {renderQuestion()}
+            </View>
+          </ScrollView>
+        </SafeAreaView>
+      </LinearGradient>
+    </KeyboardAvoidingView>
   );
 };
 
@@ -135,6 +160,12 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  scrollContainer: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 20,
   },
   safeArea: {
     flex: 1,
@@ -209,16 +240,23 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     letterSpacing: 0.5,
   },
-  sliderContainer: {
+  optionsContainer: {
     width: '100%',
     alignItems: 'center',
-    marginTop: 10,
   },
-  sliderValueText: {
+  optionButton: {
+    backgroundColor: '#F3F4F6',
+    borderRadius: 12,
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    width: '100%',
+    marginBottom: 12,
+  },
+  optionButtonText: {
     color: '#374151',
-    fontSize: 18,
-    marginTop: 10,
     fontWeight: '600',
+    fontSize: 16,
+    textAlign: 'center',
   },
 });
 

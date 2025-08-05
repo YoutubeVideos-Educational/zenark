@@ -1,8 +1,10 @@
 import { Colors } from '@/Styles/GlobalColors';
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Animated, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Animated, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import MentalHealthIllustration from './MentalHealthIllustration';
 import { useRouter } from 'expo-router';
+import { apiService, ApiError } from '../../services/apiService';
 
 const Signup = () => {
   const router = useRouter();
@@ -42,96 +44,144 @@ const Signup = () => {
     }
   }, [error, success]);
 
-  const handleSignup = () => {
+  const handleSignup = async () => {
     setError('');
     setSuccess('');
+    
+    // Name validation
+    if (!name || name.trim().length < 2) {
+      setError('Please enter your full name (at least 2 characters).');
+      return;
+    }
+    
+    // Email validation
+    if (!email || !emailRegex.test(email)) {
+      setError('Please enter a valid email address.');
+      return;
+    }
+    
+    // Password validation
+    if (!passwordRegex.test(password)) {
+      setError('Password must be at least 8 characters and include uppercase, lowercase, number, and special character.');
+      return;
+    }
+    
+    // Confirm password
+    if (password !== confirmPassword) {
+      setError('Passwords do not match.');
+      return;
+    }
+    
     setLoading(true);
-    setTimeout(() => { // simulate network
-      // Name validation
-      if (!name || name.trim().length < 2) {
-        setError('Please enter your full name (at least 2 characters).');
-        setLoading(false);
-        return;
-      }
-      // Email validation
-      if (!email || !emailRegex.test(email)) {
-        setError('Please enter a valid email address.');
-        setLoading(false);
-        return;
-      }
-      // Password validation
-      if (!passwordRegex.test(password)) {
-        setError('Password must be at least 8 characters and include uppercase, lowercase, number, and special character.');
-        setLoading(false);
-        return;
-      }
-      // Confirm password
-      if (password !== confirmPassword) {
-        setError('Passwords do not match.');
-        setLoading(false);
-        return;
-      }
-      // All good
+    
+    try {
+      console.log('Attempting signup with:', { name, email, password: '***' });
+      const result = await apiService.signup(name, email, password);
+      console.log('Signup successful:', result);
       setSuccess('Signup successful! Welcome to Zenark.');
       setError('');
+      
+      // Navigate to Welcome screen after successful signup
+      setTimeout(() => {
+        router.replace('/Welcome');
+      }, 1500);
+      
+    } catch (error) {
+      console.log('Signup error:', error);
+      const apiError = error as ApiError;
+      console.log('API Error details:', {
+        message: apiError.message,
+        status: apiError.status,
+        fullError: apiError
+      });
+      setError(apiError.message || 'Signup failed. Please try again.');
+      setSuccess('');
+    } finally {
       setLoading(false);
-    }, 900);
+    }
   };
 
   return (
-    <View style={styles.container}>
-      <Animated.View style={[styles.card, { opacity: cardOpacity }]}>  
-        <MentalHealthIllustration style={styles.illustration} />
-        <Text style={styles.heading}>Welcome to Zenark</Text>
-        <Text style={styles.subheading}>Your safe space for mental wellness begins here. Sign up to start your journey.</Text>
-        <Text style={styles.title}>Create your account</Text>
-        <Animated.View style={{ opacity: feedbackAnim }}>
-          {error ? <Text style={styles.error}>{error}</Text> : null}
-          {success ? <Text style={styles.success}>{success}</Text> : null}
-        </Animated.View>
-        <TextInput
-          style={styles.input}
-          placeholder="Full Name"
-          placeholderTextColor={Colors.blackColor + '99'}
-          value={name}
-          onChangeText={setName}
-        />
-        <TextInput
-          style={styles.input}
-          placeholder="Email"
-          placeholderTextColor={Colors.blackColor + '99'}
-          value={email}
-          onChangeText={setEmail}
-          keyboardType="email-address"
-          autoCapitalize="none"
-        />
-        <TextInput
-          style={styles.input}
-          placeholder="Password"
-          placeholderTextColor={Colors.blackColor + '99'}
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry
-        />
-        <Text style={styles.passwordHint}>Password must be at least 8 characters, with upper, lower, number, and special character.</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Confirm Password"
-          placeholderTextColor={Colors.blackColor + '99'}
-          value={confirmPassword}
-          onChangeText={setConfirmPassword}
-          secureTextEntry
-        />
-        <TouchableOpacity style={[styles.button, loading && styles.buttonDisabled]} onPress={handleSignup} activeOpacity={0.85} disabled={loading}>
-          {loading ? <ActivityIndicator color={Colors.whiteColor} /> : <Text style={styles.buttonText}>Sign Up</Text>}
-        </TouchableOpacity>
-        <Text style={styles.footerText}>Already have an account? <Text style={styles.link} onPress={() => router.replace('/(auth)/Login')}>Login</Text></Text>
-      </Animated.View>
-    </View>
+    <KeyboardAvoidingView 
+      style={{ flex: 1 }} 
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+      enabled={true}
+    >
+      <LinearGradient
+        colors={['#E0D2FF', '#FFF8E1']}
+        style={styles.container}
+      >
+        <ScrollView 
+          contentContainerStyle={styles.scrollContainer}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          bounces={true}
+          decelerationRate="fast"
+          scrollEventThrottle={16}
+        >
+          <Animated.View style={[styles.card, { opacity: cardOpacity }]}>  
+            <MentalHealthIllustration style={styles.illustration} />
+            <Text style={styles.heading}>Welcome to Zenark</Text>
+            <Text style={styles.subheading}>Your safe space for mental wellness begins here. Sign up to start your journey.</Text>
+            <Text style={styles.title}>Create your account</Text>
+            <Animated.View style={{ opacity: feedbackAnim }}>
+              {error ? <Text style={styles.error}>{error}</Text> : null}
+              {success ? <Text style={styles.success}>{success}</Text> : null}
+            </Animated.View>
+            <TextInput
+              style={styles.input}
+              placeholder="Full Name"
+              placeholderTextColor={Colors.blackColor + '99'}
+              value={name}
+              onChangeText={setName}
+            />
+            <TextInput
+              style={styles.input}
+              placeholder="Email"
+              placeholderTextColor={Colors.blackColor + '99'}
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
+            <TextInput
+              style={styles.input}
+              placeholder="Password"
+              placeholderTextColor={Colors.blackColor + '99'}
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+            />
+            <Text style={styles.passwordHint}>Password must be at least 8 characters, with upper, lower, number, and special character.</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Confirm Password"
+              placeholderTextColor={Colors.blackColor + '99'}
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
+              secureTextEntry
+            />
+            <TouchableOpacity style={[styles.button, loading && styles.buttonDisabled]} onPress={handleSignup} activeOpacity={0.85} disabled={loading}>
+              {loading ? <ActivityIndicator color={Colors.whiteColor} /> : <Text style={styles.buttonText}>Sign Up</Text>}
+            </TouchableOpacity>
+            <Text style={styles.footerText}>Already have an account? <Text style={styles.link} onPress={() => router.replace('/(auth)/Login')}>Login</Text></Text>
+          </Animated.View>
+        </ScrollView>
+      </LinearGradient>
+    </KeyboardAvoidingView>
   );
 };
 
 const styles = StyleSheet.create({
+  scrollContainer: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 20,
+    paddingHorizontal: 20,
+    minHeight: '100%',
+  },
   illustration: {
     marginBottom: 10,
     alignSelf: 'center',
@@ -152,14 +202,13 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     lineHeight: 20,
   },
-  container: {
+    container: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: Colors.primaryDotColor,
   },
   card: {
-    width: '90%',
+    width: '100%',
     maxWidth: 400,
     backgroundColor: Colors.whiteColor,
     borderRadius: 20,
@@ -170,6 +219,7 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 8,
     alignItems: 'center',
+    alignSelf: 'center',
   },
   title: {
     fontSize: 26,

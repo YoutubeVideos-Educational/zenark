@@ -1,9 +1,11 @@
 
 import { Colors } from '@/Styles/GlobalColors';
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Animated, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Animated, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import MentalHealthIllustration from './MentalHealthIllustration';
 import { useRouter } from 'expo-router';
+import { apiService, ApiError } from '../../services/apiService';
 
 const Login = () => {
   const router = useRouter();
@@ -41,55 +43,108 @@ const Login = () => {
     }
   }, [error, success]);
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     setError('');
     setSuccess('');
+    
+    // Validation
+    if (!email || !emailRegex.test(email)) {
+      setError('Please enter a valid email address.');
+      return;
+    }
+    
+    if (!password) {
+      setError('Please enter your password.');
+      return;
+    }
+    
     setLoading(true);
-    setTimeout(() => { // simulate network
-      router.replace('/Welcome');
-    }, 200);
-    // TODO: Add login API logic here
+    
+    try {
+      await apiService.signin(email, password);
+      setSuccess('Login successful! Welcome back.');
+      setError('');
+      
+      // Navigate to Welcome screen after successful login
+      setTimeout(() => {
+        router.replace('/Welcome');
+      }, 1000);
+      
+    } catch (error) {
+      const apiError = error as ApiError;
+      setError(apiError.message || 'Login failed. Please try again.');
+      setSuccess('');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <View style={styles.container}>
-      <Animated.View style={[styles.card, { opacity: cardOpacity }]}>  
-        <MentalHealthIllustration style={styles.illustration} />
-        <Text style={styles.heading}>Welcome back to Zenark</Text>
-        <Text style={styles.subheading}>We're glad to see you again. Log in to continue your mental wellness journey.</Text>
-        <Text style={styles.title}>Sign in to your account</Text>
-        <Animated.View style={{ opacity: feedbackAnim }}>
-          {error ? <Text style={styles.error}>{error}</Text> : null}
-          {success ? <Text style={styles.success}>{success}</Text> : null}
-        </Animated.View>
-        <TextInput
-          style={styles.input}
-          placeholder="Email"
-          placeholderTextColor={Colors.blackColor + '99'}
-          value={email}
-          onChangeText={setEmail}
-          keyboardType="email-address"
-          autoCapitalize="none"
-        />
-        <TextInput
-          style={styles.input}
-          placeholder="Password"
-          placeholderTextColor={Colors.blackColor + '99'}
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry
-        />
-        <Text style={styles.passwordHint}>Password must be at least 8 characters, with upper, lower, number, and special character.</Text>
-        <TouchableOpacity style={[styles.button, loading && styles.buttonDisabled]} onPress={handleLogin} activeOpacity={0.85} disabled={loading}>
-          {loading ? <ActivityIndicator color={Colors.whiteColor} /> : <Text style={styles.buttonText}>Login</Text>}
-        </TouchableOpacity>
-        <Text style={styles.footerText}>Don't have an account? <Text style={styles.link} onPress={() => router.replace('/(auth)/Signup')}>Sign Up</Text></Text>
-      </Animated.View>
-    </View>
+    <KeyboardAvoidingView 
+      style={{ flex: 1 }} 
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+      enabled={true}
+    >
+      <LinearGradient
+        colors={['#E0D2FF', '#FFF8E1']}
+        style={styles.container}
+      >
+        <ScrollView 
+          contentContainerStyle={styles.scrollContainer}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          bounces={true}
+          decelerationRate="fast"
+          scrollEventThrottle={16}
+        >
+          <Animated.View style={[styles.card, { opacity: cardOpacity }]}>  
+            <MentalHealthIllustration style={styles.illustration} />
+            <Text style={styles.heading}>Welcome back to Zenark</Text>
+            <Text style={styles.subheading}>We're glad to see you again. Log in to continue your mental wellness journey.</Text>
+            <Text style={styles.title}>Sign in to your account</Text>
+            <Animated.View style={{ opacity: feedbackAnim }}>
+              {error ? <Text style={styles.error}>{error}</Text> : null}
+              {success ? <Text style={styles.success}>{success}</Text> : null}
+            </Animated.View>
+            <TextInput
+              style={styles.input}
+              placeholder="Email"
+              placeholderTextColor={Colors.blackColor + '99'}
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
+            <TextInput
+              style={styles.input}
+              placeholder="Password"
+              placeholderTextColor={Colors.blackColor + '99'}
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+            />
+            <Text style={styles.passwordHint}>Password must be at least 8 characters, with upper, lower, number, and special character.</Text>
+            <TouchableOpacity style={[styles.button, loading && styles.buttonDisabled]} onPress={handleLogin} activeOpacity={0.85} disabled={loading}>
+              {loading ? <ActivityIndicator color={Colors.whiteColor} /> : <Text style={styles.buttonText}>Login</Text>}
+            </TouchableOpacity>
+            <Text style={styles.footerText}>Don't have an account? <Text style={styles.link} onPress={() => router.replace('/(auth)/Signup')}>Sign Up</Text></Text>
+          </Animated.View>
+        </ScrollView>
+      </LinearGradient>
+    </KeyboardAvoidingView>
   );
 };
 
 const styles = StyleSheet.create({
+  scrollContainer: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 20,
+    paddingHorizontal: 20,
+    minHeight: '100%',
+  },
   illustration: {
     marginBottom: 10,
     alignSelf: 'center',
@@ -110,14 +165,13 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     lineHeight: 20,
   },
-  container: {
+    container: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: Colors.primaryDotColor,
   },
   card: {
-    width: '90%',
+    width: '100%',
     maxWidth: 400,
     backgroundColor: Colors.whiteColor,
     borderRadius: 20,
@@ -128,6 +182,7 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 8,
     alignItems: 'center',
+    alignSelf: 'center',
   },
   title: {
     fontSize: 26,
